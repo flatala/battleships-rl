@@ -1,0 +1,23 @@
+name: battleships-rl
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - tqdm
+  - pyyaml
+  - jupyterlab
+  - ipykernel
+  - pytest
+  - black
+  - ruff
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pip
+  - pip:
+      - tensorboard
