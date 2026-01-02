@@ -134,6 +134,7 @@ class BattleshipsBoard:
 
                 if self.is_valid_placement(y, x, length, direction):
                     self.place_ship(y, x, length, direction)
+                    self.placing_index += 1
                     break
             else:
                 raise RuntimeError(f"Failed to place ship of length {length} after {max_attempts_per_ship} attempts.")
