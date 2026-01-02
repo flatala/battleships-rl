@@ -142,25 +142,27 @@ class BattleshipsBoard:
         self.visualize(show_ships=True, show_attacks=False)
 
     def visualize(self, show_ships: bool = True, show_attacks: bool = True) -> None:
-        """
-        Print an ASCII view of the board.
+        BG_BLUE = "\033[44m"
+        BG_GREY = "\033[100m"
+        RESET = "\033[0m"
 
-        - Ships: 'S' (if show_ships)
-        - Unknown: '.'
-        - Miss: 'o'
-        - Hit:  'X'
-        """
-        yx = np.full((self.size, self.size), ".", dtype="<U1")
+        def cell(y, x):
+            is_ship = self.board[y, x] == 1
+            is_hit = self.attacks[y, x] == 1
+            is_miss = self.attacks[y, x] == -1
 
-        if show_ships:
-            yx[self.board == 1] = "S"
-
-        if show_attacks:
-            yx[self.attacks == -1] = "o"
-            yx[self.attacks == 1] = "X"
+            if show_attacks and is_hit:
+                return f"{BG_GREY}💥{RESET}"
+            elif show_attacks and is_miss:
+                return f"{BG_BLUE}💨{RESET}"
+            elif show_ships and is_ship:
+                return f"{BG_GREY}  {RESET}"
+            else:
+                return f"{BG_BLUE}  {RESET}"
 
         header = "   " + " ".join(f"{x:2d}" for x in range(self.size))
         print(header)
+
         for y in range(self.size):
-            row = " ".join(f"{c:2s}" for c in yx[y])
+            row = " ".join(cell(y, x) for x in range(self.size))
             print(f"{y:2d} {row}")
