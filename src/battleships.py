@@ -1,6 +1,7 @@
-import numpy as np
 from enum import Enum, auto
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
+import numpy as np
+import torch
 
 class Direction(Enum):
     HORIZONTAL = auto()
@@ -35,6 +36,18 @@ class BattleshipsBoard:
         self.board = np.zeros((size, size), dtype=int)
         self.attacks = np.zeros((size, size), dtype=int)
 
+    def is_finished(self) -> bool:
+        ''' Check if all ships have been sunk. '''
+        return self.remaining == 0
+
+    def get_board(self) -> np.ndarray:
+        ''' Get the current state of the board. '''
+        return self.board.copy()
+
+    def get_attacks(self) -> np.ndarray:
+        ''' Get the current state of attacks on the board. '''
+        return self.attacks.copy()
+
     def get_next_length(self) -> int:
         ''' Get the length of the next ship to be placed. '''
 
@@ -46,6 +59,19 @@ class BattleshipsBoard:
         length = self.ships[self.placing_index]
         self.placing_index += 1
         return length
+
+    def get_mask_and_state(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        ''' Get the mask of valid attack positions and the current state tensor. '''
+        
+        # create mask of valid attack positions
+        mask = (self.attacks == 0).astype(np.float32).reshape(-1)
+
+        # create state tensor with two channels: board and attacks
+        hits = torch.tensor(self.attacks == 1, dtype=torch.float32)
+        misses = torch.tensor(self.attacks == -1, dtype=torch.float32)
+        state = torch.stack([hits, misses], dim=0).squeeze(2)
+
+        return torch.tensor(mask, dtype=torch.bool), state
 
     def is_valid_placement(self, origin_ax_0: int, origin_ax_1: int, length: int, direction: Direction) -> bool:
         ''' Check if a ship can be placed at the given position with the specified length and direction. '''
