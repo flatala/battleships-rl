@@ -64,14 +64,14 @@ class BattleshipsBoard:
         ''' Get the mask of valid attack positions and the current state tensor. '''
         
         # create mask of valid attack positions
-        mask = (self.attacks == 0).astype(np.float32).reshape(-1)
+        mask = torch.tensor(self.attacks == 0).view(-1)
 
         # create state tensor with two channels: board and attacks
         hits = torch.tensor(self.attacks == 1, dtype=torch.float32)
         misses = torch.tensor(self.attacks == -1, dtype=torch.float32)
         state = torch.stack([hits, misses], dim=0).squeeze(2)
 
-        return torch.tensor(mask, dtype=torch.bool), state
+        return mask, state
 
     def is_valid_placement(self, origin_ax_0: int, origin_ax_1: int, length: int, direction: Direction) -> bool:
         ''' Check if a ship can be placed at the given position with the specified length and direction. '''
@@ -145,7 +145,7 @@ class BattleshipsBoard:
             self.attacks[ax_0, ax_1] = -1
             return AttackResult(hit=False, finished=(self.remaining == 0))
 
-    def randomly_place_all_ships(self, max_attempts_per_ship: int = 10_000) -> None:
+    def randomly_place_all_ships(self, max_attempts_per_ship: int = 10_000, verbose: bool = False) -> None:
         '''Randomly place all ships on the board.'''
         for length in self.ships:
             for _ in range(max_attempts_per_ship):
@@ -165,8 +165,10 @@ class BattleshipsBoard:
             else:
                 raise RuntimeError(f"Failed to place ship of length {length} after {max_attempts_per_ship} attempts.")
 
-        print("All ships placed randomly.")
-        self.visualize(show_ships=True, show_attacks=False)
+        
+        if verbose:
+            print("All ships placed randomly.")
+            self.visualize(show_ships=True, show_attacks=False)
 
     def visualize(self, show_ships: bool = True, show_attacks: bool = True) -> None:
         BG_BLUE = "\033[44m"
