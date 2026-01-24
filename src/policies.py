@@ -14,7 +14,9 @@ def sample_action_get_log_prob(logits: torch.Tensor, mask: torch.Tensor):
     # logsumexp
     log_prob = distributions.log_prob(action)
 
-    return action, log_prob
+    entropy = distributions.entropy()
+
+    return action, log_prob, entropy
 
 class Policy_10x10(nn.Module):
 

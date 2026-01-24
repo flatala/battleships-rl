@@ -35,6 +35,7 @@ class BattleshipsBoard:
         self.placing_index = 0
         self.board = np.zeros((size, size), dtype=int)
         self.attacks = np.zeros((size, size), dtype=int)
+        self.move_count = 0
 
     def is_finished(self) -> bool:
         ''' Check if all ships have been sunk. '''
@@ -43,6 +44,10 @@ class BattleshipsBoard:
     def get_board(self) -> np.ndarray:
         ''' Get the current state of the board. '''
         return self.board.copy()
+
+    def get_total_moves(self) -> int:
+        ''' Get the count of moves the game lasted '''
+        return self.move_count
 
     def get_attacks(self) -> np.ndarray:
         ''' Get the current state of attacks on the board. '''
@@ -133,6 +138,8 @@ class BattleshipsBoard:
         # check if the position has already been attacked
         if self.attacks[ax_0, ax_1] != 0:
             raise ValueError("This position has already been attacked.")
+
+        self.move_count += 1
 
         # hit
         if self.board[ax_0, ax_1] == 1:
