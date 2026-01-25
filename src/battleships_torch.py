@@ -1,13 +1,16 @@
 from enum import Enum, auto
 from typing import NamedTuple, Tuple
+import random
 import numpy as np
 import torch
 
 class StepOut(NamedTuple):
+    active: torch.Tensor
     hit: torch.Tensor
-    finished: torch.Tensor
+    won: torch.Tensor
+    all_finished: bool
 
-class BattleshipsTorchBoard:
+class BattleshipsBoardCollection:
     ''' Batchable battleships board built with torch.Tensor. '''
 
     def __init__(self, batch_size=100, size=10, ships=(5, 4, 3, 2, 2), device='cpu'):
@@ -34,20 +37,19 @@ class BattleshipsTorchBoard:
             for L in self.ships_spec:
                 placed = False
                 for _ in range(retries):
-                    horiz = bool(torch.randint(0, 2, (), device=self.device).item())
-
+                    horiz = random.getrandbits(1) == 1
                     if horiz:
-                        y = int(torch.randint(0, N, (), device=self.device).item())
-                        x = int(torch.randint(0, N - L + 1, (), device=self.device).item())
-                        if not self.ships[b, y, x : x + L].any():
-                            self.ships[b, y, x : x + L] = True
+                        y = random.randrange(N)
+                        x = random.randrange(N - L + 1)
+                        if not self.ships[b, y, x:x+L].any():
+                            self.ships[b, y, x:x+L] = True
                             placed = True
                             break
                     else:
-                        y = int(torch.randint(0, N - L + 1, (), device=self.device).item())
-                        x = int(torch.randint(0, N, (), device=self.device).item())
-                        if not self.ships[b, y : y + L, x].any():
-                            self.ships[b, y : y + L, x] = True
+                        y = random.randrange(N - L + 1)
+                        x = random.randrange(N)
+                        if not self.ships[b, y:y+L, x].any():
+                            self.ships[b, y:y+L, x] = True
                             placed = True
                             break
                 if not placed:
@@ -55,29 +57,43 @@ class BattleshipsTorchBoard:
 
     @torch.no_grad()
     def mask(self) -> torch.Tensor:
-        m = ~self.attacked # [B,N,N]
+        mask = ~self.attacked # [B,N,N]
         if self.done.any():
-            # broadcasts [B,N,N] & [B,1,1] -> [B,N,N]
-            m = m & (~self.done).view(B, 1, 1)
-        return m.view(self.B, -1) # [B,N*N]
+            mask = mask.clone()
+            mask[self.done] = True
+        return mask.view(self.B, -1)
 
     @torch.no_grad()
     def state(self) -> torch.Tensor:
         hits = self.ships & self.attacked # [B,N,N]
-        misses = self.attacked - hits # [B,N,N]
+        misses = self.attacked ^ hits # [B,N,N]
         return torch.stack([hits.float(), misses.float()], dim=1) # [B,2,N,N]
 
     @torch.no_grad()
     def step(self, actions: torch.Tensor) -> StepOut:
-        b = torch.arange(self.B, device=self.device) # [B,] (0 to B-1)
-        actions_dim_0 = actions // self.N # y axis
-        actions_dim_1 = actions % self.N # x axis
-        self.attacked[b, actions_dim_0, actions_dim_1] = True
-        hit = self.ship[b, actions_dim_0, actions_dim_1]         
-        self.remaining[hit] -= 1
-        self.done = self.remaining == 0
-        self.move_count += 1
-        return StepOut(hit=hit, done=self.done.clone())
+        ''' Carry out a batched step of the game. '''
+
+        # get active board mask
+        active_mask = ~self.done
+
+        # select indices of active boards
+        active_indices = torch.arange(self.B, device=self.device)[active_mask] # [B,] (0 to B-1)
+
+        # get attack coordinates for active baords
+        actions_dim_0 = actions[active_indices] // self.N # y axis
+        actions_dim_1 = actions[active_indices] % self.N # x axis
+
+        # apply attacks and see which were hits
+        self.attacked[active_indices, actions_dim_0, actions_dim_1] = True
+        hit = torch.zeros(self.B, dtype=torch.bool, device=self.device)
+        hit[active_indices] = self.ships[active_indices, actions_dim_0, actions_dim_1]     
+
+        # update tracking tensors
+        self.remaining[active_indices] -= hit[active_indices].to(self.remaining.dtype)
+        self.done = self.done | (self.remaining == 0)
+        self.move_count[active_indices] += 1
+
+        return StepOut(active=active_mask, hit=hit, won=self.done.clone(), all_finished=self.done.all())
 
     @torch.no_grad()
     def is_finished(self) -> torch.Tensor:
